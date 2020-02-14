@@ -3,9 +3,11 @@
 //
 #include <tcp_server/tcp_server.h>
 #include <tcp_server/tcp_client.h>
+#include <tls_helper/tls_helper.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <thread>
 #include <cstdio>
 #include <cstring>
@@ -13,6 +15,7 @@
 
 tcp_server::tcp_server(int port) {
     this->running = false;
+    signal(SIGPIPE, SIG_IGN);
     this->sock_fd = socket(AF_INET, SOCK_STREAM, NULL);
     if(this->sock_fd < 0) {
         //TODO: error output
@@ -27,6 +30,8 @@ tcp_server::tcp_server(int port) {
         //TODO: error output
         printf("Failed to bind to port\n");
     }
+    tls_helper::init_tls();
+
 }
 
 tcp_server::~tcp_server() {
@@ -38,6 +43,9 @@ void tcp_server::start() {
         //TODO: error output
         printf("Listen failed\n");
     }
+    SSL_CTX* ctx = tls_helper::gen_context();
+    tls_helper::config_ctx(ctx);
+
     this->running = true;
     while(this->running) {
         struct sockaddr_in client_addr;
@@ -47,9 +55,15 @@ void tcp_server::start() {
             //TODO: error output
             printf("Failed to accept client\n");
         } else {
-            tcp_client *c = new tcp_client(client_new_sockfd);
-            std::thread([&c] { c->handle(); }).detach();
-
+            SSL* ssl = SSL_new(ctx);
+            SSL_set_fd(ssl, client_new_sockfd);
+            if(SSL_accept(ssl) < 0) {
+                //TODO: error output
+                printf("Failed to accept!");
+            }else {
+                tcp_client *c = new tcp_client(ssl);
+                std::thread([&c] { c->handle(); }).detach();
+            }
         }
     }
 }

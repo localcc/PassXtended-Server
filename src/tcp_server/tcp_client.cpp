@@ -12,12 +12,13 @@
 
 using namespace passxtended::protos;
 
-tcp_client::tcp_client(int client_sockfd) {
-    this->sock_fd = client_sockfd;
+tcp_client::tcp_client(SSL* ssl) {
+    this->ssl = ssl;
 }
 
 tcp_client::~tcp_client() {
-    this->sock_fd = 0;
+    SSL_free(this->ssl);
+
 }
 
 enum Commands {
@@ -30,12 +31,13 @@ void tcp_client::handle() {
     int len = 0;
     do {
         char command[1];
-        len = read(this->sock_fd, command, 1);
+        len = SSL_read(this->ssl, command, 1);
         if(command[0] == file_fetch) {
             printf("Fetching file!\n");
             flatbuffers::FlatBufferBuilder builder;
             auto raw_files = filesystem_helper::get_instance()->read_all_files();
             std::vector<flatbuffers::Offset<file>> files_vector;
+
             for(const auto& file : raw_files) {
                 auto data_offset = builder.CreateVector(std::get<1>(file), std::get<2>(file));
 
@@ -46,16 +48,17 @@ void tcp_client::handle() {
             auto files = builder.CreateVector(files_vector);
             auto all_files = Createfiles(builder, files);
             builder.Finish(all_files);
-            write(this->sock_fd, builder.GetCurrentBufferPointer(), builder.GetSize());
+            write_int_to_sockfd(builder.GetSize());
+            SSL_write(this->ssl, builder.GetCurrentBufferPointer(), builder.GetSize());
         }else if(command[0] == file_write) {
             flatbuffers::FlatBufferBuilder builder;
             int data_size = 0;
             auto* data_size_raw = new unsigned char[4];
-            read(this->sock_fd, data_size_raw, 4);
-            data_size = data_size_raw[3] << 24 | data_size_raw[2] << 16 | data_size_raw[1] << 8 | data_size_raw[0];
+            SSL_read(this->ssl, data_size_raw, 4);
+            data_size = read_int_from_sockfd();
             free(data_size_raw);
             auto* data = new unsigned char[data_size];
-            read(this->sock_fd, data, data_size);
+            SSL_read(this->ssl, data, data_size);
             auto file = Getfile(data);
             filesystem_helper::get_instance()->write_file(file->filename()->str(),
                                                           reinterpret_cast<const char *>(file->data()->data()), file->data()->size());
@@ -64,4 +67,22 @@ void tcp_client::handle() {
             printf("Request for totp!\n");
         }
     }while(len);
+    SSL_shutdown(ssl);
+    this->~tcp_client();
+
+}
+
+void tcp_client::write_int_to_sockfd(unsigned int i) {
+    auto* size_arr = new char[4];
+    size_arr[3] = (i >> 24) & 0xFF;
+    size_arr[2] = (i >> 16) & 0xFF;
+    size_arr[1] = (i >> 8) & 0xFF;
+    size_arr[0] = i & 0xFF;
+    SSL_write(this->ssl, size_arr, 4);
+}
+
+unsigned int tcp_client::read_int_from_sockfd() {
+    auto* size_arr = new char[4];
+    SSL_read(this->ssl, size_arr, 4);
+    return size_arr[3] << 24 | size_arr[2] << 16 | size_arr[1] << 8 | size_arr[0];
 }
