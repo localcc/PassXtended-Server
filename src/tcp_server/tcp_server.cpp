@@ -57,6 +57,7 @@ void tcp_server::start() {
         } else {
             SSL* ssl = SSL_new(ctx);
             SSL_set_fd(ssl, client_new_sockfd);
+
             if(SSL_accept(ssl) < 0) {
                 //TODO: error output
                 printf("Failed to accept!");

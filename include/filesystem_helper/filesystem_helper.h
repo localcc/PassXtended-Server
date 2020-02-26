@@ -13,15 +13,16 @@
 class filesystem_helper {
 public:
     static filesystem_helper* get_instance() { return current_instance; }
-    filesystem_helper(std::string dir_path);
+    
+    filesystem_helper();
     //                      filename    data   size
     std::vector<std::tuple<std::string, int8_t*, int>> read_all_files();
-    static void write_file(const std::string& file_name, const char* data, int size);
-
+    std::tuple<std::string, int8_t*, int> read_file(const std::string& file_name);
+    void write_file(const std::string& file_name, const char* data, int size);
+    
     ~filesystem_helper();
 private:
     std::mutex mutex;
-    std::string dir_path;
     static filesystem_helper* current_instance;
 };
 

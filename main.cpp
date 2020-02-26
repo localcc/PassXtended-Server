@@ -14,10 +14,10 @@ int main() {
         tls_helper::write_to_disk(x509, pkey);
     }
 
-    filesystem_helper* helper = new filesystem_helper(folder_path);
-    tcp_server *s = new tcp_server(1135);
+    filesystem_helper* helper = new filesystem_helper();
+    tcp_server *s = new tcp_server(port);
     s->start();
 
-    std::cout << "Hello, World!" << std::endl;
+    std::cout << "Hello, World!" << std::endl;  
     return 0;
 }

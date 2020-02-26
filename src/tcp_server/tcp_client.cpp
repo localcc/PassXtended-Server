@@ -8,6 +8,7 @@
 #include <thread>
 #include <unistd.h>
 #include <cstdio>
+#include <config.h>
 
 
 using namespace passxtended::protos;
@@ -24,7 +25,8 @@ tcp_client::~tcp_client() {
 enum Commands {
     file_fetch = 0,
     file_write = 1,
-    totp_req = 2
+    cert_fetch = 2,
+    totp_req = 3
 };
 
 void tcp_client::handle() {
@@ -32,6 +34,7 @@ void tcp_client::handle() {
     do {
         char command[1];
         len = SSL_read(this->ssl, command, 1);
+        if(len < 1) break;
         if(command[0] == file_fetch) {
             printf("Fetching file!\n");
             flatbuffers::FlatBufferBuilder builder;
@@ -53,20 +56,41 @@ void tcp_client::handle() {
         }else if(command[0] == file_write) {
             flatbuffers::FlatBufferBuilder builder;
             int data_size = 0;
-            auto* data_size_raw = new unsigned char[4];
-            SSL_read(this->ssl, data_size_raw, 4);
             data_size = read_int_from_sockfd();
-            free(data_size_raw);
+            
             auto* data = new unsigned char[data_size];
             SSL_read(this->ssl, data, data_size);
             auto file = Getfile(data);
             filesystem_helper::get_instance()->write_file(file->filename()->str(),
                                                           reinterpret_cast<const char *>(file->data()->data()), file->data()->size());
+        }else if(command[0] == cert_fetch) {
+            printf("Fetching certificate!\n");
+            flatbuffers::FlatBufferBuilder builder;
+
+            //Launching gpg to get the encrypted key
+            std::vector<int8_t> all_data;
+            
+            std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(export_command.append(KEY_ID).c_str(), "r"), pclose);
+            int8_t* data_arr = new int8_t[1024];
+            //Clean
+            memset(data_arr, 0, 1024);
+            int read = 0;
+            while((read = fread(data_arr, 1, 1024, pipe.get())) > 0) {
+                all_data.insert(all_data.end(), data_arr, data_arr + read);
+            }
+
+            auto data_offset = builder.CreateVector(all_data);
+            auto filename_offset = builder.CreateString("");
+            auto file_offset = Createfile(builder, data_offset, filename_offset);
+            builder.Finish(file_offset);
+            write_int_to_sockfd(builder.GetSize());
+            SSL_write(this->ssl, builder.GetBufferPointer(), builder.GetSize());
+
         }else if(command[0] == totp_req) {
             //TODO: totp
             printf("Request for totp!\n");
         }
-    }while(len);
+    }while(len > 0);
     SSL_shutdown(ssl);
     this->~tcp_client();
 
@@ -79,10 +103,13 @@ void tcp_client::write_int_to_sockfd(unsigned int i) {
     size_arr[1] = (i >> 8) & 0xFF;
     size_arr[0] = i & 0xFF;
     SSL_write(this->ssl, size_arr, 4);
+    delete size_arr;
 }
 
 unsigned int tcp_client::read_int_from_sockfd() {
     auto* size_arr = new char[4];
     SSL_read(this->ssl, size_arr, 4);
-    return size_arr[3] << 24 | size_arr[2] << 16 | size_arr[1] << 8 | size_arr[0];
+    int val = size_arr[3] << 24 | size_arr[2] << 16 | size_arr[1] << 8 | size_arr[0];
+    delete size_arr;
+    return val;
 }
