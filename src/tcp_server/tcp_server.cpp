@@ -64,7 +64,8 @@ void tcp_server::start() {
             }else {
                 tcp_client *c = new tcp_client(ssl);
                 std::thread([&c] { c->handle(); }).detach();
-            }
+                
+           }
         }
     }
 }

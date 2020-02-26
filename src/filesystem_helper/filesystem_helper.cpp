@@ -16,7 +16,7 @@ filesystem_helper::filesystem_helper() {
 
 //                      filename    data   size
 std::vector<std::tuple<std::string, int8_t*, int>> filesystem_helper::read_all_files() {
-    mutex.lock();
+    //mutex.lock();
     std::vector<std::tuple<std::string, int8_t*, int>> files;
     std::filesystem::recursive_directory_iterator iterator(folder_path);
     for(const auto& path : iterator) {
@@ -38,7 +38,7 @@ std::vector<std::tuple<std::string, int8_t*, int>> filesystem_helper::read_all_f
         }
         files.emplace_back(path.path(), data, length);
     }
-    mutex.unlock();
+    //mutex.unlock();
     return files;
 }
 
@@ -55,16 +55,16 @@ std::tuple<std::string, int8_t*, int> filesystem_helper::read_file(const std::st
         std::cout << "Failed to read!\n";
     }
     std::tuple<std::string, int8_t*, int> file_data = {file_name, data, length};
-    mutex.unlock();
+    //mutex.unlock();
     return file_data;
 }
 
 void filesystem_helper::write_file(const std::string& file_name, const char* data, int size) {
-    mutex.lock();
+    //mutex.lock();
     std::ofstream fout(file_name, std::ios::binary);
     fout.write(data, size);
     fout.close();
-    mutex.unlock();
+    //mutex.unlock();
 }
 
 

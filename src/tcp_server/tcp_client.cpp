@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <cstdio>
 #include <config.h>
+#include <iostream>
 
 
 using namespace passxtended::protos;
@@ -43,15 +44,17 @@ void tcp_client::handle() {
 
             for(const auto& file : raw_files) {
                 auto data_offset = builder.CreateVector(std::get<1>(file), std::get<2>(file));
-
+            
                 auto filename_offset = builder.CreateString(std::get<0>(file));
                 auto file_offset = Createfile(builder, data_offset, filename_offset);
                 files_vector.push_back(file_offset);
             }
             auto files = builder.CreateVector(files_vector);
             auto all_files = Createfiles(builder, files);
+            
             builder.Finish(all_files);
             write_int_to_sockfd(builder.GetSize());
+            
             SSL_write(this->ssl, builder.GetCurrentBufferPointer(), builder.GetSize());
         }else if(command[0] == file_write) {
             flatbuffers::FlatBufferBuilder builder;

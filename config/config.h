@@ -6,7 +6,7 @@
 #define PASSXTENDED_SERVER_CONFIG_H
 #include <string>
 #include <filesystem>
-static const int port = 1140;
+static const int port = 1150;
 static const std::filesystem::path folder_path = "/home/localcc/.password-store";
 static const std::filesystem::path storage_folder = "/etc/pxtended_server";
 static char* KEY_ID = "2E0C7AF4F803AC64";
